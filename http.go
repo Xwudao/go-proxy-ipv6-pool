@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"io"
 	"log"
 	"net"
@@ -16,6 +17,25 @@ func init() {
 
 	httpProxy.OnRequest().DoFunc(
 		func(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
+			// Check if authentication is required
+			if username != "" && password != "" {
+				proxyAuth := req.Header.Get("Proxy-Authorization")
+				if proxyAuth == "" {
+					return nil, goproxy.NewResponse(req,
+						goproxy.ContentTypeText,
+						http.StatusProxyAuthRequired,
+						"Proxy Authentication Required")
+				}
+
+				expectedAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(username+":"+password))
+				if proxyAuth != expectedAuth {
+					return nil, goproxy.NewResponse(req,
+						goproxy.ContentTypeText,
+						http.StatusForbidden,
+						"Invalid Credentials")
+				}
+			}
+
 			// 为 IPv6 地址添加方括号
 			outgoingIP, err := generateRandomIPv6(cidr)
 			if err != nil {
@@ -64,6 +84,23 @@ func init() {
 
 	httpProxy.OnRequest().HijackConnect(
 		func(req *http.Request, client net.Conn, ctx *goproxy.ProxyCtx) {
+			// Add authentication check for CONNECT method
+			if username != "" && password != "" {
+				proxyAuth := req.Header.Get("Proxy-Authorization")
+				if proxyAuth == "" {
+					client.Write([]byte("HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm=\"Proxy\"\r\n\r\n"))
+					client.Close()
+					return
+				}
+
+				expectedAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(username+":"+password))
+				if proxyAuth != expectedAuth {
+					client.Write([]byte("HTTP/1.1 403 Forbidden\r\n\r\n"))
+					client.Close()
+					return
+				}
+			}
+
 			// 通过代理服务器建立到目标服务器的连接
 			outgoingIP, err := generateRandomIPv6(cidr)
 			if err != nil {

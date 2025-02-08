@@ -12,11 +12,15 @@ import (
 
 var cidr string
 var port int
+var username string
+var password string
 
 func main() {
 
 	flag.IntVar(&port, "port", 52122, "server port")
 	flag.StringVar(&cidr, "cidr", "", "ipv6 cidr")
+	flag.StringVar(&username, "user", "", "proxy username")
+	flag.StringVar(&password, "pass", "", "proxy password")
 	flag.Parse()
 
 	if cidr == "" {
@@ -33,24 +37,23 @@ func main() {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	go func() {
-		err := socks5Server.ListenAndServe("tcp", fmt.Sprintf("0.0.0.0:%d", socks5Port))
-		if err != nil {
-			log.Fatal("socks5 Server err:",err)
-		}
+	// go func() {
+	// 	err := socks5Server.ListenAndServe("tcp", fmt.Sprintf("0.0.0.0:%d", socks5Port))
+	// 	if err != nil {
+	// 		log.Fatal("socks5 Server err:", err)
+	// 	}
 
-	}()
+	// }()
 	go func() {
 		err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", httpPort), httpProxy)
 		if err != nil {
-			log.Fatal("http Server err",err)
+			log.Fatal("http Server err", err)
 		}
 	}()
 
-
 	log.Println("server running ...")
 	log.Printf("http running on 0.0.0.0:%d", httpPort)
-	log.Printf("socks5 running on 0.0.0.0:%d", socks5Port)
+	// log.Printf("socks5 running on 0.0.0.0:%d", socks5Port)
 	log.Printf("ipv6 cidr:[%s]", cidr)
 	wg.Wait()
 
